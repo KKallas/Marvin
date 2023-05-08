@@ -35,3 +35,19 @@ Assembly:
 1. Attach label
 
 ![image](https://user-images.githubusercontent.com/37544886/236781686-35bb7d10-6214-4aae-8ff1-2d684e914c5a.png)
+
+## Use case, Photographer looking for new clients
+As a professional photographer, I am always looking for ways to improve my craft. I often use Instagram to find inspiration and see what other photographers are doing. However, this process can be eployed to find new clients - by interacting with people with similar interest. Finding posts that meet specific criteria, such as those with less than 50 likes and certain hashtags can be time-consuming.
+
+To automate this process, I decide to use Marvin. I set up a new channel in Discord and invite Marvin to it. I then provide Marvin with the predefined hashtags and criteria for finding the posts. Marvin scans Instagram regularly for new posts that meet these criteria.
+
+When Marvin finds a post that meets the criteria, it captures the image and uses ChatGPT to generate a positive suggestion for how to try different approaches to lighting for similar subject matter. Marvin generates a list of 50 such suggestions and sends it as text to the Discord channel.
+
+I can then review the list of suggestions and ask Marvin to show me the individual post or provide variations on a specific suggestion. I can also approve or remove suggestions from the list. Once I am satisfied with the list, Marvin attaches a Python script that I can run locally to post the comments on the selected posts.
+
+This process saves me a lot of time and provides me with valuable insights into how I can improve my photography. By automating the process of finding posts that meet specific criteria and generating positive suggestions for lighting, Marvin makes it easier for me to focus on what I do best - taking great photos!
+
+### Workstation
+* Discord
+* Win/Linux/OSX host to run python script
+
