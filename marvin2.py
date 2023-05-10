@@ -12,6 +12,9 @@ intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
+# Create a dictionary to store user-defined variables
+user_variables = {}
+
 @tree.command(
         name = "run", 
         description = "Execute python command in bot and amswer with standard IO", 
@@ -30,7 +33,9 @@ async def exec_python(interaction, input_string: str):
     try:
         old_stdout = sys.stdout
         redirected_output = sys.stdout = StringIO()
+        globals().update(user_variables)
         exec(input_string,globals(),locals())
+        user_variables.update(locals())
         sys.stdout = old_stdout
     except Exception as e:
         local_error = e
