@@ -1,5 +1,5 @@
 import xmlrpc.client
-
+from discord import app_commands
 
 class odooInterface:
     def __init__(self, user_var) -> None:

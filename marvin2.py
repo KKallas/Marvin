@@ -3,6 +3,7 @@ from discord import app_commands
 
 import sys
 from io import StringIO
+import asyncio
 
 import openai
 
@@ -26,18 +27,15 @@ intents.message_content = True
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
-
-
 @tree.command(
         name = "odoo_query",
         description = "execute python query in odoo server to get operational data from odoo",
         guild=discord.Object(id=1085329951978438727),
         )
 async def exec_odoo(interaction, input_string: str):
-    print("debug 1: input string: "+input_string)
     answer = oi.query_string(input_string)
+    # Send a loading message     
     await interaction.response.send_message('```json\n'+str(answer)+'```')
-
 
 @tree.command(
         name = "run", 
@@ -71,6 +69,7 @@ async def exec_python(interaction, input_string: str):
     
     if answer is None or answer == "":
         answer = "No output"
+
     await interaction.response.send_message(answer)
 
 
@@ -84,14 +83,18 @@ async def on_message(message):
     if message.author.bot == True:
         return
     
-    response = openai.ChatCompletion.create(
-        model='gpt-3.5-turbo',
-        messages=[
-            {'role':'assistant', 'content':'you are chatgpt ai assisnt who can answer all sorts of questions and write python code'},
-            {'role':'user','content':message.content}],
-        temperature=0.5,
-    )
-    
-    await message.channel.send(response.choices[0].message.content)
+    async with message.channel.typing():
+        response = openai.ChatCompletion.create(
+            model='gpt-3.5-turbo',
+            messages=[
+                {'role':'assistant', 'content':'you are chatgpt ai assisnt who can answer all sorts of questions and write python code'},
+                {'role':'user','content':message.content}],
+            temperature=0.5,
+        )
+        while not response.choices[0].message.content.strip():
+            await asyncio.sleep(2)
+            response = openai.Completion.fetch(response.id)
+
+        await message.channel.send(response.choices[0].message.content)
 
 client.run(TOKEN)
