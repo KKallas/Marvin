@@ -27,6 +27,25 @@ intents.message_content = True
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)   
 
+def python_validator(file_path:str):
+    """tries to compile the python, if any errors occur returns false otherwise true
+
+    Args:
+        file_path (str): full path to the file
+
+    Returns:
+        bool: true if can be compiled by local pyhton, otherwise false
+    """
+    try:
+        with open(file_path, "r") as file:
+            # Try compiling the file
+            compile(file.read(), file_path, "exec")
+            return True
+
+    except (SyntaxError, FileNotFoundError):
+        return False
+
+
 @tree.command(
         name = "save",
         description= "Save action or interface object for the Marvin bot",
@@ -42,21 +61,33 @@ async def save_python(interaction, attachment_message_link: str):
     Args:
         attachment_message_link (str): link to discord messgae that has the script file as 1st attachment
     """
+
+    # split the link up into ids
     message_link = attachment_message_link.split('/')
     server_id = int(message_link[4])
     channel_id = int(message_link[5])
     mesg_id = int(message_link[6])
 
+    # get server object
     server = client.get_guild(server_id)
-    channel = server.get_channel(channel_id)
 
-    if channel:
-        message = await channel.fetch_message(mesg_id)
-        # put message validator here
-        await message.attachments[0].save("tmp/"+message.attachments[0].filename)
-        await interaction.response.send_message("file saved: "+message.attachments[0].filename)
-    else:
-        await interaction.response.send_message("could not save the file")
+    # get channel object
+    channel = server.get_channel(channel_id)
+    if channel==None:
+        await interaction.response.send_message("could not get on the channel of the message")
+        return
+
+    # get message object
+    message = await channel.fetch_message(mesg_id)
+    if message==None:
+        await interaction.response.send_message("could not get the message")
+        return
+
+    await message.attachments[0].save("tmp/"+message.attachments[0].filename)
+
+    if python_validator()
+
+    await interaction.response.send_message("file saved: "+message.attachments[0].filename)
 
 @tree.command(
         name = "load",
