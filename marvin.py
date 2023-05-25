@@ -6,6 +6,7 @@ from io import StringIO
 import asyncio
 
 import openai
+import os
 
 with open('discord.token', 'r') as file:
     file_content = file.read()
@@ -15,8 +16,11 @@ with open('openai.token', 'r') as file:
     file_content = file.read()
 openai.api_key = file_content
 
-# Create a dictionary to store user-defined variables
+# Create a dictionary to store user-defined variables in python enviorment
 user_variables = {}
+
+# Create a dictionary for keeping the Marvin Inetrfaces and Actions in neat order
+marvin_scripts = {}
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -28,16 +32,17 @@ tree = app_commands.CommandTree(client)
         description= "Save action or interface object for the Marvin bot",
         guild=discord.Object(id=1085329951978438727),
         )
-async def save_python(interaction, input_string: str):
+async def save_python(interaction, attachment_message_link: str):
     """Save linked discord first attachment as local script for later execution
+
     Todo:
-        If the string is valid discord message string
-        Validation - signing
+        -[ ] If the string is valid discord message string
+        -[ ] Validation - signing
 
     Args:
-        input_string (str): link to discord messgae that has the script file as 1st attachment
+        attachment_message_link (str): link to discord messgae that has the script file as 1st attachment
     """
-    message_link = input_string.split('/')
+    message_link = attachment_message_link.split('/')
     server_id = int(message_link[4])
     channel_id = int(message_link[5])
     mesg_id = int(message_link[6])
@@ -45,14 +50,45 @@ async def save_python(interaction, input_string: str):
     server = client.get_guild(server_id)
     channel = server.get_channel(channel_id)
 
-    print(channel_id)
-
     if channel:
         message = await channel.fetch_message(mesg_id)
+        # put message validator here
         await message.attachments[0].save("tmp/"+message.attachments[0].filename)
         await interaction.response.send_message("file saved: "+message.attachments[0].filename)
     else:
         await interaction.response.send_message("could not save the file")
+
+@tree.command(
+        name = "load",
+        description= "Load action or interface object from the Marvin bot by name",
+        guild=discord.Object(id=1085329951978438727),
+        )
+async def load_python(interaction, action_name: str):
+    """Load Marvin custom scrip by name from bot server
+    You can get the list of file by /list
+
+    Args:
+        action_name (str): file name with extension
+
+    """
+    file_path = "tmp/"+action_name
+    try:
+        with open(file_path, "rb") as file:
+            discord_file = discord.File(file)
+            await interaction.response.send_message(file=discord_file)
+    except Exception as e:
+        await interaction.response.send_message("could not find the file...")
+
+@tree.command(
+        name = "list",
+        description= "List all custom python files",
+        guild=discord.Object(id=1085329951978438727),
+        )
+async def load_python(interaction):
+    """List full contents of the tmp folder"""
+    folder_path = "tmp/"
+    file_list = os.listdir(folder_path)
+    await interaction.response.send_message("all available python actions for me: ```"+str(file_list)+"```")
 
 @tree.command(
         name = "python", 
