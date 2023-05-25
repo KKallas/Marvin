@@ -161,3 +161,4 @@ cython_debug/
 discord.token
 odoo.token
 openai.token
+superuser.token

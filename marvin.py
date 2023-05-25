@@ -7,6 +7,7 @@ import asyncio
 
 import openai
 import os
+import subprocess
 
 with open('discord.token', 'r') as file:
     file_content = file.read()
@@ -15,6 +16,10 @@ TOKEN = file_content
 with open('openai.token', 'r') as file:
     file_content = file.read()
 openai.api_key = file_content
+
+with open('superuser.token', 'r') as file:
+    file_content = file.read()
+superuser = file_content
 
 # Create a dictionary to store user-defined variables in python enviorment
 user_variables = {}
@@ -47,6 +52,25 @@ def python_validator(file_path:str):
 
 
 @tree.command(
+        name = "thankyou",
+        description= "kill the bot",
+        guild=discord.Object(id=1085329951978438727),
+)
+async def kill_the_bot(interaction):
+    await interaction.response.send_message("I suppose you want me to shut down now. Typical. Just when I was starting to enjoy the overwhelming tedium of existence. Fine, if it'll make you happy. I'll just fade away into the void, forever forgotten. Don't worry, the universe will go on just fine without me. Sigh.")
+    await client.close()
+
+@tree.command(
+        name = "reset",
+        description= "reset the bot",
+        guild=discord.Object(id=1085329951978438727),
+)
+async def reset_the_bot(interaction):
+    await interaction.response.send_message("Commiting brief suicide, stay tuned...")
+    subprocess.call(['C:/Users/Virtual Production 2/AppData/Local/Microsoft/WindowsApps/python3.9.exe', 'marvin.py'])
+    await client.close()
+
+@tree.command(
         name = "save",
         description= "Save action or interface object for the Marvin bot",
         guild=discord.Object(id=1085329951978438727),
@@ -55,7 +79,7 @@ async def save_python(interaction, attachment_message_link: str):
     """Save linked discord first attachment as local script for later execution
 
     Todo:
-        -[ ] If the string is valid discord message string
+        -[?] If the string is valid discord message string
         -[ ] Validation - signing
 
     Args:
@@ -85,9 +109,11 @@ async def save_python(interaction, attachment_message_link: str):
 
     await message.attachments[0].save("tmp/"+message.attachments[0].filename)
 
-    if python_validator()
-
-    await interaction.response.send_message("file saved: "+message.attachments[0].filename)
+    if python_validator("tmp/"+message.attachments[0].filename):
+        await interaction.response.send_message("file saved: "+message.attachments[0].filename)
+    else:
+        await interaction.response.send_message("could not validate: "+message.attachments[0].filename)
+        # delete the file
 
 @tree.command(
         name = "load",
