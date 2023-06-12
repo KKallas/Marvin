@@ -2,13 +2,13 @@ import discord
 from discord import app_commands
 
 import sys
+import io
 from io import StringIO
 import asyncio
 
 import openai
 import os
 import subprocess
-import importlib
 
 with open('discord.token', 'r') as file:
     file_content = file.read()
@@ -56,8 +56,10 @@ def python_validator(file_path:str):
     except (SyntaxError, FileNotFoundError):
         return False
     
-async def answer_query(interaction, content):
-    """as discordpy is limited 2000 char per message sometimes the output has to be split into log file
+async def answer_query(interaction, input_string, locals_dict):
+    """ answer_query:
+    generate python output as answer,
+    as discordpy is limited 2000 char per message sometimes the output has to be split into log file
 
     ToDo:
         - [ ] Repeat query in the answer 
@@ -65,25 +67,75 @@ async def answer_query(interaction, content):
     Args:
         interaction (discordpy interaction): provides interface for sending the output to user
         content (string): full content of the message
+        locals_dict (dict): loclas() to keep the context between string executions
     """
     chunk_size = 2000-12  # Maximum length of a Discord message is 2K char but I need 6 chars for the blockqoutes
+    temp_file_name = "tmp/temp.log"
 
-    if len(content) > chunk_size:
+    redirected_output = None
+    local_error = None
+
+    # Execute code
+    try:
+        old_stdout = sys.stdout
+        redirected_output = sys.stdout = StringIO()
+
+        locals().update(locals_dict)
+        exec(input_string,globals(),locals())
+        locals_dict.update(locals())
+
+        sys.stdout = old_stdout
+    except Exception as e:
+        local_error = str(e)
+
+    # handle no output or exception
+    answer = local_error
+    if redirected_output is not None:
+        if local_error is None:
+            answer = redirected_output.getvalue()
+    
+    if answer is None or answer == "":
+        answer = "No output"
+
+    # check if output fits into message limitaions, if not attach as file
+    if len(answer) > chunk_size:
         # Write output to log file
-        with open("tmp/temp.log", "w") as file:
-            file.write(content)
-
-        try:
-            with open("tmp/temp.log", "rb") as file:
-                discord_file = discord.File(file)
-                await interaction.response.send_message("answer attached in the log...", file=discord_file)
-                # delete the file
-        except Exception as e:
-            await interaction.response.send_message("could not find the file...")
+        file = io.BytesIO(answer.encode())
+        discord_file = discord.File(file, filename="answer.log")
+        await interaction.response.send_message("Answer attached in the log...", file=discord_file)
         
     else:
-        await interaction.response.send_message("```"+str(content)+"```")
+        await interaction.response.send_message("```"+str(answer)+"```")
 
+async def answer_chat(interaction, input_string, locals_dict):
+    pass
+
+def read_file(file_path:str):
+    """ read_file
+    Open file from Bot local file system and make it into discord file ready to be attached
+    or error string
+
+    Args:
+        file_path (str): relrive path from marvin.py
+
+    Returns:
+        dicord.File: either a file ready for attachment or error in log file
+        bool: if error, to shape the message
+    """
+    try:
+        with open(file_path, "rb") as file:
+            discord_file = discord.File(file)
+            return discord_file, False
+    except Exception as e:
+        try:
+            error_file = io.BytesIO(str(e).encode())
+            discord_file = discord.File(error_file, filename="error.log")
+
+            return discord_file, True
+            
+        except Exception as ex:
+            print(ex)
+            exit()
 
 @tree.command(
         name = "thankyou",
@@ -127,10 +179,13 @@ async def write_marvin(interaction, attachment_message_link: str):
         guild=discord.Object(id=1085329951978438727),
 )
 async def read_marvin(interaction):
-    global marvin
-    marvin = True
-    load_python(interaction)
-    marvin = False 
+    file_in, error_state = read_file("marvin.py")
+
+    message = "here is marvin.py file ..."
+    if error_state:
+        message = "unfortunatly there was an error, log attached ..."
+    
+    await interaction.response.send_message(message, file=file_in)
 
 
 
@@ -235,29 +290,8 @@ async def exec_python(interaction, input_string: str):
         input_string (str): Python command in qoutes as singe string to execute
     """
     global user_variables
-    redirected_output = None
-    local_error = None
 
-    try:
-        old_stdout = sys.stdout
-        redirected_output = sys.stdout = StringIO()
-        locals().update(user_variables)
-        exec(input_string,globals(),locals())
-        user_variables.update(locals())
-        sys.stdout = old_stdout
-    except Exception as e:
-        local_error = str(e)
-
-    answer = local_error
-    if redirected_output is not None:
-        if local_error is None:
-            answer = redirected_output.getvalue()
-    
-    if answer is None or answer == "":
-        answer = "No output"
-
-    #await interaction.response.send_message("```"+str(answer)+"```")
-    await answer_query(interaction, answer)
+    await answer_query(interaction, input_string, user_variables)
 
 @tree.command(
         name = "run",
@@ -265,34 +299,10 @@ async def exec_python(interaction, input_string: str):
         guild=discord.Object(id=1085329951978438727),
         )
 async def user_python(interaction,interface:str,action:str):
-    # fix this later, it is actually exec_python
+    global user_variables
 
     input_string = "import "+interface+"_"+action
-
-    global user_variables
-    redirected_output = None
-    local_error = None
-
-    try:
-        old_stdout = sys.stdout
-        redirected_output = sys.stdout = StringIO()
-        locals().update(user_variables)
-        exec(input_string,globals(),locals())
-        user_variables.update(locals())
-        sys.stdout = old_stdout
-    except Exception as e:
-        local_error = str(e)
-
-    answer = local_error
-    if redirected_output is not None:
-        if local_error is None:
-            answer = redirected_output.getvalue()
-    
-    if answer is None or answer == "":
-        answer = "No output"
-
-    #await interaction.response.send_message("```"+str(answer)+"```")
-    await answer_query(interaction, answer)
+    await answer_query(interaction, input_string, user_variables)
 
 
 @client.event
@@ -310,17 +320,19 @@ async def on_message(message):
         return
     
     async with message.channel.typing():
+        initial_response = await message.channel.send("Marvin is thinking so hard it would hurt if it could ...")
         response = openai.ChatCompletion.create(
             model='gpt-3.5-turbo',
             messages=[
-                {'role':'assistant', 'content':'you are MArvin, chatgpt based ai assisnt who can answer all sorts of questions and write python code'},
+                {'role':'assistant', 'content':'you are Marvin, chatgpt based ai assisnt who can answer all sorts of questions and write python code. You keep answers as short as possible'},
                 {'role':'user','content':message.content}],
             temperature=0.5,
         )
+
         while not response.choices[0].message.content.strip():
             await asyncio.sleep(2)
             response = openai.Completion.fetch(response.id)
 
-        await message.channel.send(response.choices[0].message.content)
+        await initial_response.edit(content=response.choices[0].message.content)
 
 client.run(TOKEN)
