@@ -29,6 +29,8 @@ user_variables = {}
 marvin_scripts = {}
 
 marvin=False
+
+# make tmp folder look like /.
 folder_path = os.getcwd()+"/tmp"
 print(folder_path)
 sys.path.append(folder_path)
