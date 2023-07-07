@@ -2,6 +2,17 @@ from discord.ext import commands
 import discord
 
 import asyncio
+import os
+"""
+discord.token
+
+one line, raw text of the token
+"""
+print(os.getcwd())
+with open('discord.token', 'r') as file:
+    file_content = file.read()
+TOKEN = file_content
+
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -10,4 +21,4 @@ bot = commands.Bot(command_prefix='/', intents=intents, application_id="10853221
 
 asyncio.run(bot.load_extension("cogs.maincog"))
 
-bot.run("MTA4NTMyMjE1MTU4MzgyNTk1MQ.G-T-RH.3omyFywwErilL_Ca9JKQD3BUXpG_olk64lCot0")
+bot.run(TOKEN)
