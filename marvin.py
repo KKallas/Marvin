@@ -4,20 +4,31 @@ from discord import app_commands
 import sys
 import io
 from io import StringIO
-import asyncio
 
-import openai
 import os
 import subprocess
 
+import json
+import requests
+
+"""
+discord.token
+
+one line, raw text of the token
+"""
 with open('discord.token', 'r') as file:
     file_content = file.read()
 TOKEN = file_content
 
-with open('openai.token', 'r') as file:
-    file_content = file.read()
-openai.api_key = file_content
 
+
+
+"""
+superuser.token
+
+the user who can ask for authorized commands
+one line, raw text of the Discord user id
+"""
 with open('superuser.token', 'r') as file:
     file_content = file.read()
 superuser = file_content
@@ -27,6 +38,9 @@ user_variables = {}
 
 # Create a dictionary for keeping the Marvin Inetrfaces and Actions in neat order
 marvin_scripts = {}
+
+# Query callback for large language model plugin
+_aiquery_callback = None
 
 marvin=False
 
@@ -39,6 +53,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)   
+
 
 def python_validator(file_path:str):
     """tries to compile the python, if any errors occur returns false otherwise true
@@ -58,7 +73,7 @@ def python_validator(file_path:str):
     except (SyntaxError, FileNotFoundError):
         return False
     
-async def answer_query(interaction, input_string, locals_dict):
+async def answer_query(interaction, input_string, locals_dict):  
     """ answer_query:
     generate python output as answer,
     as discordpy is limited 2000 char per message sometimes the output has to be split into log file
@@ -72,7 +87,6 @@ async def answer_query(interaction, input_string, locals_dict):
         locals_dict (dict): loclas() to keep the context between string executions
     """
     chunk_size = 2000-12  # Maximum length of a Discord message is 2K char but I need 6 chars for the blockqoutes
-    temp_file_name = "tmp/temp.log"
 
     redirected_output = None
     local_error = None
@@ -108,9 +122,6 @@ async def answer_query(interaction, input_string, locals_dict):
         
     else:
         await interaction.response.send_message("```"+str(answer)+"```")
-
-async def answer_chat(interaction, input_string, locals_dict):
-    pass
 
 def read_file(file_path:str):
     """ read_file
@@ -321,58 +332,32 @@ async def on_message(message):
     if message.content[-1] != '?':
         return
     
-    async with message.channel.typing():
-        # get the current thread or create a new thread for the bot's response
-        # TODO: I dint know how to make it nice so I made it work, sorry
-        try:
-            # if message.channel is type Thread it cannot create a new thread and fail
-            thread = await message.channel.create_thread(name="Answer Thread", message=message)
-            
-        except:
-            # we know its a thread because it otherwise the last step would have not failed
-            thread = message.channel
-  
+    # answer only if I am mentioned
+    if not client.user.mentioned_in(message):
+        return
+    
+    # generate answer
+    await try_and_answer(message)
 
-        initial_response = await thread.send("Marvin is thinking so hard it would hurt if it could ...")
 
-        threadmessages=[
-                {'role':'assistant', 'content':'you are Marvin, chatgpt based ai assisnt who can answer all sorts of questions and write python code. You keep answers as short as possible'},
-                ]
-        
-        # get all messages from discord thread
-        async for msg in thread.history(limit=None):
-            if msg.author == message.author:
-                threadmessages.append({'role': 'user', 'content': msg.content})
-            else:
-                threadmessages.append({'role': 'assistant', 'content': msg.content})
+from openai_interface import try_and_answer as _aiquery_callback
+print(str(_aiquery_callback))
 
-        threadmessages.append({'role': 'user', 'content': message.content})
+async def try_and_answer(message):
+    await _aiquery_callback(message)
 
-        response = openai.ChatCompletion.create(
-            model='gpt-3.5-turbo',
-            messages=threadmessages,
-            temperature=0.5,
-        )
+async def on_message_edit(before, after):
+    # no point answering onself...
+    if before.author.bot or after.author.bot:
+        return
 
-        while not response.choices[0].message.content.strip():
-            await asyncio.sleep(2)
-            response = openai.Completion.fetch(response.id)
-
-        # Send the bot's response in the thread
-        response_text = response.choices[0].message.content
-        max_length = 2000  # Discord message character limit
-        num_messages = (len(response_text) // max_length) + 1
-
-        for i in range(num_messages):
-            start = i * max_length
-            end = start + max_length
-            content = response_text[start:end]
-
-            # Send each part of the response in the thread
-            await thread.send(content)
-        
-        # Edit the initial response in the original channel
-        await initial_response.edit(content="Response has been posted in a thread.")
-
+    # Check if the original message mentioned the bot and had a question mark
+    if client.user.mentioned_in(before) and before.content[-1] == '?':
+        return
+    
+    # generate an answer if the conditions are met in the edited message
+    if client.user.mentioned_in(after) and before.content[-1] == '?':
+        try_and_answer(after)
+    
 
 client.run(TOKEN)
